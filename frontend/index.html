@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DaVinci Resolve Assistant</title>
+  <meta name="description" content="AI-powered automation for DaVinci Resolve." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css?v=5" />
+</head>
+<body>
+  <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 3.8l7.2 14.2H4.8L12 5.8z"/></svg>
+        <span class="logo-text">Resolve Assistant</span>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-card" id="status-card">
+      <div class="status-row">
+        <span class="status-dot" id="resolve-dot"></span>
+        <span class="status-label">Resolve</span>
+        <span class="status-value" id="resolve-status">Checking…</span>
+      </div>
+      <div class="status-row">
+        <span class="status-dot active" id="llm-dot"></span>
+        <span class="status-label">Engine</span>
+        <span class="status-value" id="llm-status">–</span>
+      </div>
+    </div>
+
+    <!-- Model Selector -->
+    <div class="model-selector">
+      <label class="selector-label" for="provider-select">Provider</label>
+      <div class="select-wrapper">
+        <select id="provider-select" class="styled-select">
+          <option value="anthropic">Anthropic Claude</option>
+          <option value="gemini">Google Gemini</option>
+          <option value="ollama">Ollama (Local)</option>
+        </select>
+      </div>
+      <label class="selector-label" for="model-select">Model</label>
+      <div class="select-wrapper">
+        <select id="model-select" class="styled-select">
+          <option value="">Loading models…</option>
+        </select>
+      </div>
+      <button class="apply-btn" id="apply-model-btn">Apply</button>
+    </div>
+
+    <!-- Conversations -->
+    <div class="sidebar-section conversation-section">
+      <div class="section-heading">
+        <h3 class="section-title" style="margin: 0;">Session History</h3>
+        <button class="icon-btn" id="new-chat-btn" title="New Session" aria-label="New session">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="chat-list" id="chat-list">
+        <p class="log-empty">Loading...</p>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── Main Workspace ──────────────────────────────────────────────────── -->
+  <main class="chat-area">
+    <header class="chat-header">
+      <button class="icon-btn header-toggle" id="mobile-sidebar-toggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="header-center">
+        <h1 class="chat-title">Resolve Assistant</h1>
+      </div>
+      <div id="model-badge" class="model-badge">–</div>
+    </header>
+
+    <div class="messages-container" id="messages">
+      <!-- Welcome message -->
+      <div class="message assistant welcome-message">
+        <div class="message-avatar system-avatar" aria-label="System">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3.5 20h17L12 3Z"/><path d="M12 7.5 7.1 17h9.8L12 7.5Z"/></svg>
+        </div>
+        <div class="message-body">
+          <div class="message-content">
+            <p>DaVinci Resolve AI Engine Initialized.</p>
+            <p>Type commands to execute automation scripts, or query the timeline state.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirmation panel -->
+    <div class="confirmation-panel hidden" id="confirmation-panel">
+      <h2 class="confirm-title" id="confirm-title">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Confirm Destructive Action
+      </h2>
+      <div class="confirm-body" id="confirm-body"></div>
+      <div class="confirm-actions">
+        <button class="btn btn-cancel" id="btn-cancel">Cancel</button>
+        <button class="btn btn-confirm" id="btn-confirm">Execute</button>
+      </div>
+    </div>
+
+    <!-- Input area -->
+
+    <div class="input-area">
+      <div class="input-wrapper">
+        <textarea
+          id="message-input"
+          class="message-input"
+          placeholder="> Enter command or query..."
+          rows="1"
+          autocomplete="off"
+          spellcheck="false"
+        ></textarea>
+        <!-- Send button -->
+        <button id="send-btn" class="send-btn icon-btn" title="Send command" aria-label="Send command">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <p class="input-hint">Press Enter to execute.</p>
+    </div>
+  </main>
+
+  <script src="/static/chat.js?v=6"></script>
+</body>
+</html>

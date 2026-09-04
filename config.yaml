@@ -1,0 +1,55 @@
+llm:
+  # Provider: "anthropic", "gemini", or "ollama"
+  provider: "gemini"
+
+  # Gemini settings
+  gemini:
+    default_model: "gemini-3.5-flash-lite"
+    max_tokens: 2048
+
+  # Anthropic settings
+  anthropic:
+    default_model: "claude-sonnet-4-5"
+    available_models:
+      - id: "claude-opus-4-5"
+        label: "Claude Opus 4.5"
+      - id: "claude-sonnet-4-5"
+        label: "Claude Sonnet 4.5 (Recommended)"
+      - id: "claude-haiku-4-5"
+        label: "Claude Haiku 4.5 (Fast)"
+      - id: "claude-opus-4-0"
+        label: "Claude Opus 4"
+      - id: "claude-sonnet-4-0"
+        label: "Claude Sonnet 4"
+    max_tokens: 2048
+
+  # Ollama settings
+  ollama:
+    host: "http://localhost:11434"
+    default_model: "llama3.1"  # overridden by UI selection
+    max_tokens: 2048
+
+rag:
+  chroma_path: "./chroma_store"
+  collection_name: "resolve_scripting_api"
+  top_k: 5
+  embeddings:
+    # Uses chromadb's built-in DefaultEmbeddingFunction (all-MiniLM-L6-v2 via onnxruntime)
+    # No PyTorch required. Always local regardless of LLM provider.
+    model: "all-MiniLM-L6-v2"
+
+docs:
+  pdf_dir: "../Documentations"
+  text_dir: "./data/scripting_api_docs"
+
+server:
+  host: "127.0.0.1"
+  port: 8000
+  log_level: "info"
+
+logging:
+  level: "INFO"
+  file: "resolve_assistant.log"
+
+mcp:
+  server_path: "../mcp-candidates/hoyt2/mcp_server.py"

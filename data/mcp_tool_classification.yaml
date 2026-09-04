@@ -1,0 +1,462 @@
+activate_domain:
+  destructive: false
+davinci-resolve_activate_domain:
+  destructive: false
+davinci-resolve_add_clip_flag:
+  destructive: true
+davinci-resolve_add_clip_marker:
+  destructive: true
+davinci-resolve_add_clip_mattes:
+  destructive: true
+davinci-resolve_add_color_version:
+  destructive: true
+davinci-resolve_add_fusion_comp:
+  destructive: true
+davinci-resolve_add_item_flag:
+  destructive: true
+davinci-resolve_add_item_marker:
+  destructive: true
+davinci-resolve_add_render_job:
+  destructive: true
+davinci-resolve_add_take:
+  destructive: true
+davinci-resolve_add_timeline_marker:
+  destructive: true
+davinci-resolve_add_timeline_mattes:
+  destructive: true
+davinci-resolve_add_track:
+  destructive: true
+davinci-resolve_analyze_dolby_vision:
+  destructive: true
+davinci-resolve_append_clips_to_timeline:
+  destructive: true
+davinci-resolve_archive_project:
+  destructive: true
+davinci-resolve_assign_to_color_group:
+  destructive: true
+davinci-resolve_auto_sync_audio:
+  destructive: true
+davinci-resolve_clear_clip_color:
+  destructive: true
+davinci-resolve_clear_clip_flags:
+  destructive: true
+davinci-resolve_clear_clip_mark_in_out:
+  destructive: true
+davinci-resolve_clear_item_color:
+  destructive: true
+davinci-resolve_clear_item_flags:
+  destructive: true
+davinci-resolve_clear_timeline_marks:
+  destructive: true
+davinci-resolve_close_project:
+  destructive: true
+davinci-resolve_copy_grades:
+  destructive: true
+davinci-resolve_create_compound_clip:
+  destructive: true
+davinci-resolve_create_fusion_clip:
+  destructive: true
+davinci-resolve_create_media_pool_folder:
+  destructive: true
+davinci-resolve_create_project:
+  destructive: true
+davinci-resolve_create_project_folder:
+  destructive: true
+davinci-resolve_create_stereo_clip:
+  destructive: true
+davinci-resolve_create_timeline:
+  destructive: true
+davinci-resolve_create_timeline_from_clips:
+  destructive: true
+davinci-resolve_deactivate_domain:
+  destructive: false
+davinci-resolve_delete_all_render_jobs:
+  destructive: true
+davinci-resolve_delete_clip_marker_at_frame:
+  destructive: true
+davinci-resolve_delete_clip_markers_by_color:
+  destructive: true
+davinci-resolve_delete_clip_mattes:
+  destructive: true
+davinci-resolve_delete_color_version:
+  destructive: true
+davinci-resolve_delete_fusion_comp:
+  destructive: true
+davinci-resolve_delete_item_marker_at_frame:
+  destructive: true
+davinci-resolve_delete_item_markers_by_color:
+  destructive: true
+davinci-resolve_delete_media_pool_clips:
+  destructive: true
+davinci-resolve_delete_media_pool_folders:
+  destructive: true
+davinci-resolve_delete_project:
+  destructive: true
+davinci-resolve_delete_project_folder:
+  destructive: true
+davinci-resolve_delete_render_job:
+  destructive: true
+davinci-resolve_delete_render_preset:
+  destructive: true
+davinci-resolve_delete_take:
+  destructive: true
+davinci-resolve_delete_timeline:
+  destructive: true
+davinci-resolve_delete_timeline_clips:
+  destructive: true
+davinci-resolve_delete_timeline_marker_at_frame:
+  destructive: true
+davinci-resolve_delete_timeline_markers_by_color:
+  destructive: true
+davinci-resolve_delete_track:
+  destructive: true
+davinci-resolve_duplicate_timeline:
+  destructive: true
+davinci-resolve_enable_track:
+  destructive: true
+davinci-resolve_export_clip_metadata:
+  destructive: true
+davinci-resolve_export_fusion_comp:
+  destructive: true
+davinci-resolve_export_item_lut:
+  destructive: true
+davinci-resolve_export_project:
+  destructive: true
+davinci-resolve_export_timeline:
+  destructive: true
+davinci-resolve_finalize_take:
+  destructive: true
+davinci-resolve_get_burn_in_preset_list:
+  destructive: false
+davinci-resolve_get_clip_audio_mapping:
+  destructive: false
+davinci-resolve_get_clip_color:
+  destructive: false
+davinci-resolve_get_clip_flags:
+  destructive: false
+davinci-resolve_get_clip_mark_in_out:
+  destructive: false
+davinci-resolve_get_clip_markers:
+  destructive: false
+davinci-resolve_get_clip_matte_list:
+  destructive: false
+davinci-resolve_get_clip_metadata:
+  destructive: false
+davinci-resolve_get_clip_name:
+  destructive: false
+davinci-resolve_get_clip_properties:
+  destructive: false
+davinci-resolve_get_clip_third_party_metadata:
+  destructive: false
+davinci-resolve_get_clip_timeline:
+  destructive: false
+davinci-resolve_get_clip_unique_id:
+  destructive: false
+davinci-resolve_get_color_version_list:
+  destructive: false
+davinci-resolve_get_current_clip_thumbnail:
+  destructive: false
+davinci-resolve_get_current_color_version:
+  destructive: false
+davinci-resolve_get_current_database:
+  destructive: false
+davinci-resolve_get_current_media_pool_folder:
+  destructive: false
+davinci-resolve_get_current_page:
+  destructive: false
+davinci-resolve_get_current_project:
+  destructive: false
+davinci-resolve_get_current_project_folder:
+  destructive: false
+davinci-resolve_get_current_render_format:
+  destructive: false
+davinci-resolve_get_current_timecode:
+  destructive: false
+davinci-resolve_get_current_timeline:
+  destructive: false
+davinci-resolve_get_current_video_item:
+  destructive: false
+davinci-resolve_get_folder_clips:
+  destructive: false
+davinci-resolve_get_folder_subfolders:
+  destructive: false
+davinci-resolve_get_item_audio_channel_mapping:
+  destructive: false
+davinci-resolve_get_item_color:
+  destructive: false
+davinci-resolve_get_item_color_cache_enabled:
+  destructive: false
+davinci-resolve_get_item_color_group:
+  destructive: false
+davinci-resolve_get_item_duration:
+  destructive: false
+davinci-resolve_get_item_enabled:
+  destructive: false
+davinci-resolve_get_item_end:
+  destructive: false
+davinci-resolve_get_item_flags:
+  destructive: false
+davinci-resolve_get_item_fusion_cache_enabled:
+  destructive: false
+davinci-resolve_get_item_left_offset:
+  destructive: false
+davinci-resolve_get_item_markers:
+  destructive: false
+davinci-resolve_get_item_media_pool_item:
+  destructive: false
+davinci-resolve_get_item_name:
+  destructive: false
+davinci-resolve_get_item_node_graph:
+  destructive: false
+davinci-resolve_get_item_properties:
+  destructive: false
+davinci-resolve_get_item_right_offset:
+  destructive: false
+davinci-resolve_get_item_source_end:
+  destructive: false
+davinci-resolve_get_item_source_start:
+  destructive: false
+davinci-resolve_get_item_start:
+  destructive: false
+davinci-resolve_get_item_track:
+  destructive: false
+davinci-resolve_get_items_in_track:
+  destructive: false
+davinci-resolve_get_linked_items:
+  destructive: false
+davinci-resolve_get_media_pool_root_folder:
+  destructive: false
+davinci-resolve_get_project_attributes:
+  destructive: false
+davinci-resolve_get_project_setting:
+  destructive: false
+davinci-resolve_get_quick_export_presets:
+  destructive: false
+davinci-resolve_get_render_codecs:
+  destructive: false
+davinci-resolve_get_render_formats:
+  destructive: false
+davinci-resolve_get_render_job_list:
+  destructive: false
+davinci-resolve_get_render_job_status:
+  destructive: false
+davinci-resolve_get_render_mode:
+  destructive: false
+davinci-resolve_get_render_preset_list:
+  destructive: false
+davinci-resolve_get_render_resolutions:
+  destructive: false
+davinci-resolve_get_selected_pool_clips:
+  destructive: false
+davinci-resolve_get_selected_timeline_clips:
+  destructive: false
+davinci-resolve_get_start_timecode:
+  destructive: false
+davinci-resolve_get_take_by_index:
+  destructive: false
+davinci-resolve_get_take_count:
+  destructive: false
+davinci-resolve_get_timeline_end_frame:
+  destructive: false
+davinci-resolve_get_timeline_markers:
+  destructive: false
+davinci-resolve_get_timeline_marks:
+  destructive: false
+davinci-resolve_get_timeline_media_pool_item:
+  destructive: false
+davinci-resolve_get_timeline_node_graph:
+  destructive: false
+davinci-resolve_get_timeline_settings:
+  destructive: false
+davinci-resolve_get_timeline_start_frame:
+  destructive: false
+davinci-resolve_get_track_count:
+  destructive: false
+davinci-resolve_get_track_enabled:
+  destructive: false
+davinci-resolve_get_track_locked:
+  destructive: false
+davinci-resolve_get_track_name:
+  destructive: false
+davinci-resolve_get_track_subtype:
+  destructive: false
+davinci-resolve_get_version:
+  destructive: false
+davinci-resolve_goto_parent_folder:
+  destructive: false
+davinci-resolve_goto_root_folder:
+  destructive: false
+davinci-resolve_import_folder_from_file:
+  destructive: true
+davinci-resolve_import_fusion_comp:
+  destructive: true
+davinci-resolve_import_into_timeline:
+  destructive: true
+davinci-resolve_import_media:
+  destructive: true
+davinci-resolve_import_project:
+  destructive: true
+davinci-resolve_import_timeline_from_file:
+  destructive: true
+davinci-resolve_insert_fusion_composition:
+  destructive: true
+davinci-resolve_insert_fusion_generator:
+  destructive: true
+davinci-resolve_insert_fusion_title:
+  destructive: true
+davinci-resolve_insert_generator:
+  destructive: true
+davinci-resolve_insert_ofx_generator:
+  destructive: true
+davinci-resolve_insert_title:
+  destructive: true
+davinci-resolve_is_rendering_in_progress:
+  destructive: false
+davinci-resolve_link_clips:
+  destructive: true
+davinci-resolve_link_full_resolution_media:
+  destructive: true
+davinci-resolve_link_proxy_media:
+  destructive: true
+davinci-resolve_list_databases:
+  destructive: false
+davinci-resolve_list_domains:
+  destructive: false
+davinci-resolve_list_fusion_comps:
+  destructive: false
+davinci-resolve_list_media_clips:
+  destructive: false
+davinci-resolve_list_project_folders:
+  destructive: false
+davinci-resolve_list_projects:
+  destructive: false
+davinci-resolve_list_timelines:
+  destructive: false
+davinci-resolve_load_color_version:
+  destructive: true
+davinci-resolve_load_fusion_comp:
+  destructive: true
+davinci-resolve_load_project_burn_in_preset:
+  destructive: true
+davinci-resolve_load_render_preset:
+  destructive: true
+davinci-resolve_lock_track:
+  destructive: true
+davinci-resolve_move_clips_to_folder:
+  destructive: true
+davinci-resolve_move_folders:
+  destructive: true
+davinci-resolve_open_project:
+  destructive: true
+davinci-resolve_open_project_folder:
+  destructive: false
+davinci-resolve_refresh_media_pool_folders:
+  destructive: false
+davinci-resolve_relink_clips:
+  destructive: true
+davinci-resolve_remove_from_color_group:
+  destructive: true
+davinci-resolve_rename_color_version:
+  destructive: true
+davinci-resolve_rename_fusion_comp:
+  destructive: true
+davinci-resolve_rename_project:
+  destructive: true
+davinci-resolve_rename_timeline:
+  destructive: true
+davinci-resolve_render_with_quick_export:
+  destructive: true
+davinci-resolve_replace_clip:
+  destructive: true
+davinci-resolve_replace_clip_preserve_subclip:
+  destructive: true
+davinci-resolve_reset_item_node_colors:
+  destructive: true
+davinci-resolve_restore_project:
+  destructive: true
+davinci-resolve_save_project:
+  destructive: true
+davinci-resolve_save_render_preset:
+  destructive: true
+davinci-resolve_select_take:
+  destructive: true
+davinci-resolve_set_cdl:
+  destructive: true
+davinci-resolve_set_clip_color:
+  destructive: true
+davinci-resolve_set_clip_mark_in_out:
+  destructive: true
+davinci-resolve_set_clip_metadata:
+  destructive: true
+davinci-resolve_set_clip_name:
+  destructive: true
+davinci-resolve_set_clip_property:
+  destructive: true
+davinci-resolve_set_clip_third_party_metadata:
+  destructive: true
+davinci-resolve_set_current_database:
+  destructive: true
+davinci-resolve_set_current_media_pool_folder:
+  destructive: false
+davinci-resolve_set_current_timecode:
+  destructive: true
+davinci-resolve_set_item_color:
+  destructive: true
+davinci-resolve_set_item_color_cache:
+  destructive: true
+davinci-resolve_set_item_enabled:
+  destructive: true
+davinci-resolve_set_item_fusion_cache:
+  destructive: true
+davinci-resolve_set_item_name:
+  destructive: true
+davinci-resolve_set_item_node_lut:
+  destructive: true
+davinci-resolve_set_item_property:
+  destructive: true
+davinci-resolve_set_project_setting:
+  destructive: true
+davinci-resolve_set_render_format_and_codec:
+  destructive: true
+davinci-resolve_set_render_mode:
+  destructive: true
+davinci-resolve_set_render_settings:
+  destructive: true
+davinci-resolve_set_selected_pool_clip:
+  destructive: false
+davinci-resolve_set_start_timecode:
+  destructive: true
+davinci-resolve_set_timeline_marks:
+  destructive: true
+davinci-resolve_set_timeline_setting:
+  destructive: true
+davinci-resolve_set_track_name:
+  destructive: true
+davinci-resolve_start_rendering:
+  destructive: true
+davinci-resolve_stop_rendering:
+  destructive: true
+davinci-resolve_switch_page:
+  destructive: false
+davinci-resolve_switch_timeline:
+  destructive: false
+davinci-resolve_unlink_clips:
+  destructive: true
+davinci-resolve_unlink_proxy_media:
+  destructive: true
+davinci-resolve_update_sidecar:
+  destructive: true
+deactivate_domain:
+  destructive: false
+destructive:
+  destructive: true
+get_current_page:
+  destructive: false
+get_version:
+  destructive: false
+list_domains:
+  destructive: false
+safe:
+  destructive: false
+switch_page:
+  destructive: false

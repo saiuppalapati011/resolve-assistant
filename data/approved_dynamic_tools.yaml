@@ -1,0 +1,30 @@
+- description: Switches to indicated page in DaVinci Resolve. Input can be one of
+    ("media", "cut", "edit", "fusion", "color", "fairlight", "deliver").
+  destructive: false
+  method_name: OpenPage
+  object_path: resolve
+  parameters:
+  - description: Indicated page in DaVinci Resolve
+    name: pageName
+    type: string
+    allowed_values:
+    - media
+    - cut
+    - edit
+    - fusion
+    - color
+    - fairlight
+    - deliver
+  tool_name: open_page
+- description: 'Inserts a generator (indicated by generatorName : string) into the
+    timeline.'
+  destructive: false
+  method_name: InsertGeneratorIntoTimeline
+  object_path: timeline
+  parameters:
+  - description: The name of the generator to insert.
+    name: generatorName
+    type: string
+    allowed_values:
+    - Solid Color
+  tool_name: insert_generator_into_timeline
