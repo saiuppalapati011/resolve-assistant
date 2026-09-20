@@ -10,6 +10,10 @@ A standalone macOS companion app for DaVinci Resolve — AI-powered Q&A grounded
 - Resolve scripting enabled: **Preferences → General → External scripting → Local**
 - Anthropic API key (for cloud LLM) **or** [Ollama](https://ollama.com) running locally
 
+The project intentionally uses a small local architecture: one FastAPI
+backend, one SQLite checkpoint file, one Chroma documentation index, and the
+Resolve popup script. PostgreSQL and Docker are not required.
+
 ## Setup
 
 ```bash

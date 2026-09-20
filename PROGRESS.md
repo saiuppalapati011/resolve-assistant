@@ -16,7 +16,7 @@ A standalone macOS companion app for DaVinci Resolve that provides:
 3. LangGraph agent with router → RAG/planner → confirmation gate → executor → reporter
 4. Flexible LLM backend (Anthropic Claude or Ollama) switchable live from the UI
 
-**Stack:** Python 3.11, FastAPI, LangGraph, Chroma, sentence-transformers, pdfplumber, Anthropic SDK, HTML/CSS/JS
+**Stack:** Python 3.11, FastAPI, LangGraph, Chroma, Anthropic/Gemini/Ollama clients, HTML/CSS/JS
 
 ## Simple Resolve popup mode — 2026-09-07
 
@@ -69,15 +69,15 @@ needs its built-in UI Manager and the standard-library HTTP client.
 | Component | File(s) | Notes |
 |---|---|---|
 | Project scaffold | `resolve-assistant/` directory tree | All directories created |
-| Requirements | `requirements.txt` | FastAPI, LangGraph, Chroma, pdfplumber, anthropic, sentence-transformers |
+| Requirements | `requirements.txt` | Only packages used by the backend, popup, RAG index, and tests |
 | Configuration | `config.yaml`, `backend/config.py`, `.env.example` | Hierarchical: YAML → .env override |
 | Logging | `backend/logging_config.py` | Dual output: console (human) + JSON file (machine) |
 | LLM Provider — Base | `backend/llm/base.py` | `LLMProvider` ABC with `generate()`, `set_model()`, `current_model` |
 | LLM Provider — Anthropic | `backend/llm/anthropic_provider.py` | All Claude models; live model switching; normalized output |
 | LLM Provider — Ollama | `backend/llm/ollama_provider.py` | Fetches model list from running Ollama; tool-call normalization |
 | LLM Factory | `backend/llm/factory.py` | Only file that imports concrete providers; `get_model_catalog()` for UI |
-| RAG Embeddings | `backend/rag/embeddings.py` | `LocalEmbeddings` (sentence-transformers, all-MiniLM-L6-v2) — always local |
-| RAG Ingest | `backend/rag/ingest.py` | PDF → pdfplumber → section-based chunking → Chroma; CLI entry point |
+| RAG Embeddings | `backend/rag/embeddings.py` | Chroma's built-in ONNX embedding function — always local |
+| RAG Ingest | `backend/rag/ingest.py` | PDF/text → section-based chunking → Chroma; CLI entry point |
 | RAG Retriever | `backend/rag/retriever.py` | Top-k query with source metadata |
 | Resolve Connection | `backend/resolve/connection.py` | Auto-launches Resolve; guarded `current_project()` / `current_timeline()` |
 | Tool Functions | `backend/resolve/tools.py` | All 15 tools fully implemented |
@@ -106,7 +106,7 @@ needs its built-in UI Manager and the standard-library HTTP client.
 |---|---|---|
 | UI shell | Browser tab (FastAPI serves `frontend/`) | Fastest iteration; no extra deps; matches author workflow |
 | Embeddings | Always local (`all-MiniLM-L6-v2`) | Index reusable regardless of LLM provider |
-| PDF ingestion | `pdfplumber` at ingest time | No manual conversion; handles real DaVinci Resolve PDFs |
+| PDF ingestion | `pypdf` at ingest time | Small dependency and sufficient text extraction for the project documentation |
 | Model switching | Live via UI dropdown + `/api/set-model` | No restart required; user-friendly |
 | LLM default | `claude-sonnet-4-5` (Anthropic) | Good balance of speed/quality; overridable via config/UI |
 | Tool validation | Against `TOOL_REGISTRY` in planner | Prevents hallucinated tool names from reaching executor |
@@ -171,7 +171,7 @@ resolve-assistant/
 │   │   ├── ollama_provider.py
 │   │   └── factory.py
 │   ├── rag/
-│   │   ├── embeddings.py          # Local sentence-transformers
+│   │   ├── embeddings.py          # Local Chroma/ONNX embeddings
 │   │   ├── ingest.py              # PDF → Chroma pipeline
 │   │   └── retriever.py
 │   └── resolve/

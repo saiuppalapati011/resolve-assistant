@@ -3,7 +3,6 @@ Central settings loader.
 Reads config.yaml first, then overlays .env values.
 All code imports Settings from here — no concrete provider class is imported
 outside backend/llm/factory.py.
-# Force reload
 """
 from __future__ import annotations
 
@@ -112,12 +111,5 @@ class Settings:
         )).resolve()),
     )
     mcp_python: str = os.getenv("MCP_PYTHON", os.sys.executable)
-
-    # ── PostgreSQL (long-term memory store) ──────────────────────────────────
-    database_url: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://resolve:resolve_secret@localhost:5432/resolve_assistant",
-    )
-
 
 settings = Settings()

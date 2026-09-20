@@ -419,7 +419,37 @@ simple and dependency-free.
    `resolve_client.py`; this project depends on the sibling
    `mcp-candidates/hoyt2` checkout for the Resolve MCP bridge.
 
-## 13. Important security note
+## 13. College-project simplification pass — 2026-09-20
+
+The project was reduced to the smallest set of components needed for the
+current demonstration:
+
+- Removed unused PostgreSQL configuration, Docker compose setup, and
+  PostgreSQL checkpoint dependencies. The project uses one local SQLite
+  checkpoint database instead.
+- Removed unused direct dependencies for the old LangChain provider stack,
+  PDF library, async file helper, and provider discovery package. The active
+  code uses `pypdf`, direct provider clients, LangGraph, and Chroma.
+- Removed dead imports and an old duplicate module-level declaration in the
+  FastAPI entrypoint.
+- Removed generated Python/test caches and stale runtime logs from the working
+  folder; these are recreated automatically when the app or tests run.
+- Added the missing `integration` pytest marker declaration so test output no
+  longer reports a project-owned marker warning.
+- Kept the browser frontend and WebSocket routes because they are still a
+  documented development fallback, while the Resolve popup remains the main
+  user interface.
+- Kept the Chroma index, Resolve scripting documentation, SQLite checkpoint
+  store, MCP classification file, provider modules, global memory, and tests
+  because each is used by the current application or its documented workflow.
+
+This is a cleanup rather than a feature rewrite: the popup, model switching,
+MCP actions, confirmation gate, documentation-first RAG, web fallback, memory,
+and browser fallback remain available. The goal is that the project can be
+explained as a small pipeline: popup/browser → FastAPI → agent → RAG or MCP →
+response.
+
+## 14. Important security note
 
 An API key was previously visible in a pasted provider error URL during testing.
 That key should be revoked and regenerated. Provider keys belong only in the
