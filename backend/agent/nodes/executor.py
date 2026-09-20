@@ -7,6 +7,8 @@ from __future__ import annotations
 import time
 import re
 import inspect
+import ast
+import json
 
 from backend.agent.state import AgentState
 from backend.logging_config import get_logger
@@ -35,6 +37,57 @@ FAILURE_RESPONSES = {
     "setting update failed",
     "mcp tool failed",
 }
+
+_CURRENT_TIMELINE_ALIASES = {
+    "current_timeline",
+    "__current_timeline__",
+    "$current_timeline",
+    "get_current_timeline",
+    "$get_current_timeline",
+    "__get_current_timeline__",
+}
+
+
+def _is_current_timeline_alias(value: object) -> bool:
+    return isinstance(value, str) and value.lower() in _CURRENT_TIMELINE_ALIASES
+
+
+_TIMELINE_NAME_TOOL_MARKERS = (
+    "timeline",
+    "track",
+    "items_in_track",
+)
+
+
+def _needs_timeline_name_normalization(tool_name: str) -> bool:
+    if tool_name in {
+        "davinci-resolve_create_timeline",
+        "davinci-resolve_list_timelines",
+    }:
+        return False
+    return any(marker in tool_name for marker in _TIMELINE_NAME_TOOL_MARKERS)
+
+
+def _tool_text(result: object) -> str:
+    if hasattr(result, "text"):
+        return str(result.text)
+    if isinstance(result, str):
+        return result
+    if hasattr(result, "content"):
+        return "\n".join(getattr(item, "text", str(item)) for item in (result.content or []))
+    return str(result)
+
+
+def _timeline_names_from_result(result: object) -> list[str]:
+    text = _tool_text(result).strip()
+    try:
+        value = json.loads(text)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        try:
+            value = ast.literal_eval(text)
+        except (SyntaxError, ValueError):
+            return []
+    return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
 
 def map_error_message(raw_msg: str) -> str:
     """Map DaVinci Resolve error messages to plain-language user messages."""
@@ -74,6 +127,7 @@ async def run(state: AgentState, config: RunnableConfig) -> AgentState:
             return schema_obj.schema()
         return {}
     schemas = {t.name: _get_schema(t) for t in tools}
+    list_timelines_tool = tool_dict.get("davinci-resolve_list_timelines")
 
     current_state: dict = {}
     prev_result_text: str = ""   # output text from the last successful tool call
@@ -113,11 +167,11 @@ async def run(state: AgentState, config: RunnableConfig) -> AgentState:
                 or value_text == "$prev_result"
                 or indexed_match is not None
             )
-            is_current_timeline_alias = value_text in {
-                "current_timeline",
-                "__current_timeline__",
-                "$current_timeline",
-            }
+            # Some models name the result after the tool that produced it.
+            # Treat those spellings as the same executor placeholder so a
+            # valid get_current_timeline -> follow-up chain resolves to the
+            # returned timeline name instead of being sent literally to MCP.
+            is_current_timeline_alias = _is_current_timeline_alias(value_text)
             if is_previous_result or is_current_timeline_alias:
                 if is_current_timeline_alias:
                     resolved_value = current_timeline_text or prev_result_text
@@ -138,6 +192,35 @@ async def run(state: AgentState, config: RunnableConfig) -> AgentState:
                     resolved_value = prev_result_text
                 args[key] = resolved_value
                 logger.info("Result chaining applied", arg=key, value=resolved_value)
+
+        # Resolve timeline lookup is case-sensitive. Normalize an explicitly
+        # supplied timeline name against the live project list so inputs such
+        # as "test run" still resolve to "Test Run" for every timeline tool.
+        if (
+            "name" in args
+            and isinstance(args["name"], str)
+            and args["name"]
+            and _needs_timeline_name_normalization(tool_name)
+            and list_timelines_tool is not None
+        ):
+            try:
+                timeline_result = await list_timelines_tool.ainvoke({})
+                timeline_names = _timeline_names_from_result(timeline_result)
+                requested_name = args["name"].strip()
+                exact_name = next(
+                    (name for name in timeline_names if name.lower() == requested_name.lower()),
+                    None,
+                )
+                if exact_name and exact_name != args["name"]:
+                    logger.info(
+                        "Normalized timeline name",
+                        tool=tool_name,
+                        original=args["name"],
+                        normalized=exact_name,
+                    )
+                    args["name"] = exact_name
+            except Exception as exc:
+                logger.debug("Timeline name normalization skipped", error=str(exc))
 
         if tool_name not in schemas:
             result = {

@@ -7,6 +7,11 @@ from __future__ import annotations
 
 from backend.config import settings
 from backend.llm.base import LLMProvider
+from backend.logging_config import get_logger
+from backend.llm.errors import redact_secrets
+
+
+logger = get_logger(__name__)
 
 
 def get_provider(
@@ -62,11 +67,26 @@ def get_model_catalog(provider: str | None = None) -> dict:
     from backend.llm.gemini_provider import GeminiProvider
     from backend.llm.ollama_provider import OllamaProvider
 
+    def safe_models(provider_name: str, loader) -> list[dict]:
+        """Return one provider's models without making the whole catalog fail."""
+        try:
+            return loader()
+        except Exception as exc:
+            # Model discovery is only for the selector. A provider being
+            # offline or returning malformed data must not make /api/models
+            # return HTTP 500 and prevent the popup from opening.
+            logger.warning(
+                "Could not load provider model list",
+                provider=provider_name,
+                error=redact_secrets(exc),
+            )
+            return []
+
     ollama = OllamaProvider(host=settings.ollama_host)
     return {
-        "anthropic": AnthropicProvider.available_models(),
-        "gemini": GeminiProvider.available_models(),
-        "ollama": ollama.available_models(),
+        "anthropic": safe_models("anthropic", AnthropicProvider.available_models),
+        "gemini": safe_models("gemini", GeminiProvider.available_models),
+        "ollama": safe_models("ollama", ollama.available_models),
         "current_provider": provider or settings.llm_provider,
         "current_model": settings.llm_model,
     }

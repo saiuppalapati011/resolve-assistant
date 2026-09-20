@@ -10,6 +10,7 @@ from pathlib import Path
 from backend.agent.state import AgentState
 from backend.llm.factory import get_provider
 from backend.logging_config import get_logger
+from backend.llm.errors import redact_secrets
 
 logger = get_logger(__name__)
 
@@ -71,8 +72,6 @@ async def run(state: AgentState) -> AgentState:
         return {"pending_confirmation": None}
 
     # Generate a natural language confirmation string using LLM
-    provider = get_provider(state.get("llm_provider"), state.get("llm_model"))
-    
     system_prompt = (
         "You are an assistant for DaVinci Resolve. The user has requested an action that includes "
         "destructive operations (like deleting clips, modifying tracks). "
@@ -85,13 +84,14 @@ async def run(state: AgentState) -> AgentState:
     prompt = f"Planned tool calls:\n{json.dumps(planned_calls, indent=2)}\n\nProvide the natural language confirmation."
     
     try:
+        provider = get_provider(state.get("llm_provider"), state.get("llm_model"))
         response = provider.generate(
             messages=[{"role": "user", "content": prompt}],
             system=system_prompt,
         )
         confirmation_msg = response["content"].strip()
     except Exception as exc:
-        logger.error(f"Confirmation LLM generation failed: {exc}")
+        logger.error("Confirmation LLM generation failed", error=redact_secrets(exc))
         # Fallback
         descriptions = []
         for call in planned_calls:

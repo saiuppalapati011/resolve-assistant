@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from backend.agent.state import AgentState
 from backend.llm.factory import get_provider
+from backend.llm.errors import redact_secrets
 from backend.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -48,8 +49,6 @@ async def run(state: AgentState) -> AgentState:
     fallback_summary = "\n".join(lines)
 
     # 2. Call LLM for natural language summary
-    provider = get_provider(state.get("llm_provider"), state.get("llm_model"))
-    
     system_prompt = (
         "You are an assistant for DaVinci Resolve. "
         "Describe the outcome of the user's requested actions conversationally based on the execution results. "
@@ -68,6 +67,7 @@ async def run(state: AgentState) -> AgentState:
     )
 
     try:
+        provider = get_provider(state.get("llm_provider"), state.get("llm_model"))
         response = provider.generate(
             messages=llm_messages,
             system=system_prompt,
@@ -89,7 +89,7 @@ async def run(state: AgentState) -> AgentState:
             final_response = llm_summary
             
     except Exception as exc:
-        logger.error(f"Reporter LLM generation failed: {exc}")
+        logger.error("Reporter LLM generation failed", error=redact_secrets(exc))
         if failures or (executed_count < planned_count):
             final_response = f"I wasn't able to complete everything as requested. Here is what happened:\n\n{fallback_summary}"
         else:

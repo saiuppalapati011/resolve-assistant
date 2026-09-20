@@ -59,7 +59,8 @@ async def test_planner_missing_capability_flat_decline():
     
     with patch('backend.agent.nodes.planner.get_provider') as mock_get_provider, \
          patch('backend.agent.nodes.planner._get_retriever'), \
-         patch('backend.agent.nodes.planner.get_mcp_client') as mock_mcp:
+         patch('backend.agent.nodes.planner.get_mcp_client') as mock_mcp, \
+         patch('backend.agent.nodes.planner.check_resolve_connection', new=AsyncMock(return_value=True)):
          
         mock_provider = mock_get_provider.return_value
         # LLM returns no_matching_tool

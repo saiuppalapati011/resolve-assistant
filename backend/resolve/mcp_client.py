@@ -225,5 +225,51 @@ def get_mcp_client() -> MCPClientFacade:
 
 
 def is_resolve_connected() -> bool:
-    """True if a live MCP session exists."""
+    """True if the MCP stdio session exists.
+
+    This is intentionally a cheap local check.  The stdio process can remain
+    alive after Resolve closes, so request paths should use
+    :func:`check_resolve_connection` when they need the real bridge status.
+    """
     return _session is not None
+
+
+async def check_resolve_connection() -> bool:
+    """Probe the Resolve bridge through a harmless MCP read operation.
+
+    Keeping the MCP session alive is not proof that DaVinci Resolve is still
+    running.  The server reports the actual bridge error when Resolve is
+    closed, so use ``get_current_project`` as a small, non-mutating probe.
+    This also lets the same persistent MCP process recover when Resolve is
+    reopened later.
+    """
+    if _session is None:
+        return False
+
+    try:
+        result = await asyncio.wait_for(
+            _session.call_tool("get_current_project", {}),
+            timeout=3,
+        )
+        text = "\n".join(
+            getattr(item, "text", str(item))
+            for item in (getattr(result, "content", None) or [])
+        )
+        if getattr(result, "isError", False):
+            return False
+
+        lowered = text.lower()
+        return not any(
+            marker in lowered
+            for marker in (
+                "davinci resolve error:",
+                "da vinci resolve error:",
+                "mcp call failed:",
+                "unexpected error:",
+                "is not running",
+                "not connected",
+            )
+        )
+    except Exception as exc:
+        logger.warning("Resolve connectivity probe failed", error=str(exc))
+        return False

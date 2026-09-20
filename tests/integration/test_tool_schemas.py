@@ -36,7 +36,8 @@ async def test_planner_injects_full_schemas_to_llm():
     client.get_tools = AsyncMock(return_value=[tool, domains])
 
     with patch('backend.agent.nodes.planner.get_provider') as mock_get_provider, \
-         patch('backend.agent.nodes.planner.get_mcp_client', return_value=client):
+         patch('backend.agent.nodes.planner.get_mcp_client', return_value=client), \
+         patch('backend.agent.nodes.planner.check_resolve_connection', new=AsyncMock(return_value=True)):
         mock_provider = mock_get_provider.return_value
         mock_provider.generate.return_value = {"content": '{"planned_calls": []}'}
 

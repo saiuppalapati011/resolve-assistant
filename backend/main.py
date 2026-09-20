@@ -6,6 +6,9 @@ Routes:
   GET  /health                    → Resolve connection status
   GET  /api/models                → available LLM models for UI dropdown
   POST /api/set-model             → switch active model without restart
+  POST /api/simple/query          → one ephemeral popup assistant request
+  POST /api/simple/confirm        → confirm/cancel a popup action
+  GET/POST/DELETE /api/simple/memory → explicit global memory profile
   WS   /ws/chat                   → main conversation WebSocket
 """
 from __future__ import annotations
@@ -14,11 +17,13 @@ import json
 import asyncio
 import os
 import re
+import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 import uvicorn
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 import yaml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
@@ -28,8 +33,17 @@ from backend.agent.graph import get_graph
 from backend.agent.state import AgentState
 from backend.config import settings
 from backend.llm.factory import get_model_catalog, get_provider
+from backend.llm.errors import redact_secrets
 from backend.logging_config import setup_logging, get_logger
 from backend.agent.nodes.confirmation import invalidate_classification_cache
+from backend.memory import (
+    add_memory,
+    clear_memory,
+    delete_memory,
+    extract_explicit_memory,
+    load_memory,
+    memory_context,
+)
 
 
 setup_logging()
@@ -51,44 +65,61 @@ async def _ensure_chat_titles_table() -> None:
     )
     await _db_conn.commit()
 
+async def _warm_services() -> None:
+    """Warm MCP, graph storage, and tool classification without blocking HTTP startup."""
+    from backend.resolve.mcp_client import init_mcp_client
+
+    try:
+        # Start the persistent MCP subprocess, activate MVP domains, and cache tools.
+        mcp_client = await init_mcp_client()
+
+        # Chat titles are application metadata and intentionally live outside
+        # LangGraph's checkpoint schema. get_graph() opens the SQLite connection.
+        await get_graph()
+        await _ensure_chat_titles_table()
+
+        # Build/update classification after the active tool list is available.
+        tools = await mcp_client.get_tools()
+        yaml_path = Path(__file__).parent.parent / "data" / "mcp_tool_classification.yaml"
+        existing_data = {}
+        if yaml_path.exists():
+            with open(yaml_path, "r") as f:
+                existing_data = yaml.safe_load(f) or {}
+
+        for tool in tools:
+            if tool.name not in existing_data:
+                if tool.name == "davinci-resolve_activate_domain":
+                    existing_data[tool.name] = {"destructive": False}
+                else:
+                    existing_data[tool.name] = {"destructive": None}
+
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(yaml_path, "w") as f:
+            yaml.safe_dump(existing_data, f, default_flow_style=False)
+        invalidate_classification_cache()
+        logger.info("Background service warm-up complete", tools=len(tools))
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        # HTTP and model-selection routes remain useful when Resolve/MCP is
+        # unavailable. The health route reports the disconnected state.
+        logger.warning("Background service warm-up failed", error=str(exc))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from backend.resolve.mcp_client import init_mcp_client, close_mcp_client
-
-    # Start the persistent MCP subprocess, activate MVP domains, cache tools
-    mcp_client = await init_mcp_client()
-
-    # Chat titles are application metadata and intentionally live outside
-    # LangGraph's checkpoint schema.
-    # get_graph() must run first because it opens the aiosqlite connection.
-    await get_graph()
-    await _ensure_chat_titles_table()
-
-    # Build / update data/mcp_tool_classification.yaml with the post-activation tool list
-    tools = await mcp_client.get_tools()
-    yaml_path = Path(__file__).parent.parent / "data" / "mcp_tool_classification.yaml"
-    existing_data = {}
-    if yaml_path.exists():
-        with open(yaml_path, "r") as f:
-            existing_data = yaml.safe_load(f) or {}
-
-    for tool in tools:
-        if tool.name not in existing_data:
-            if tool.name == "davinci-resolve_activate_domain":
-                existing_data[tool.name] = {"destructive": False}
-            else:
-                existing_data[tool.name] = {"destructive": None}
-
-    yaml_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(yaml_path, "w") as f:
-        yaml.safe_dump(existing_data, f, default_flow_style=False)
-    # Invalidate the in-memory cache so the new entries are picked up
-    invalidate_classification_cache()
-
+    # Let Uvicorn serve /health and /api/models immediately. MCP startup can
+    # take time or fail independently when Resolve is closed.
+    warmup_task = asyncio.create_task(_warm_services())
     yield
 
     # ── Shutdown ──────────────────────────────────────────────────────────────
     from backend.agent.graph import close_graph
+    from backend.resolve.mcp_client import close_mcp_client
+    if not warmup_task.done():
+        warmup_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await warmup_task
     await close_graph()
     await close_mcp_client()
     logger.info("MCP client and database connection closed cleanly.")
@@ -110,6 +141,33 @@ _current_model    = settings.llm_model
 _active_threads: set[str] = set()
 _active_threads_guard = asyncio.Lock()
 
+# The Resolve popup uses one hidden session id and never exposes the old
+# conversation browser. These tasks exist only while a popup request is running.
+_simple_tasks: dict[str, asyncio.Task] = {}
+# A Resolve popup can deliver a duplicate click event while the first
+# confirmation request is finishing. Keep the completed response briefly so
+# the duplicate is answered idempotently instead of resuming a deleted graph
+# checkpoint and asking for confirmation again.
+_simple_completed: dict[str, tuple[float, dict]] = {}
+_simple_confirmation_locks: dict[str, asyncio.Lock] = {}
+_SIMPLE_RESULT_TTL_SECONDS = 60
+
+
+def _cached_simple_result(session_id: str) -> dict | None:
+    now = time.monotonic()
+    expired = [
+        key for key, (created_at, _) in _simple_completed.items()
+        if now - created_at > _SIMPLE_RESULT_TTL_SECONDS
+    ]
+    for key in expired:
+        _simple_completed.pop(key, None)
+    cached = _simple_completed.get(session_id)
+    return cached[1] if cached else None
+
+
+def _cache_simple_result(session_id: str, payload: dict) -> None:
+    _simple_completed[session_id] = (time.monotonic(), payload)
+
 # ── HTTP routes ────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
@@ -123,8 +181,8 @@ async def index():
 @app.get("/health")
 async def health():
     """Check backend status."""
-    from backend.resolve.mcp_client import is_resolve_connected
-    connected = is_resolve_connected()
+    from backend.resolve.mcp_client import check_resolve_connection
+    connected = await check_resolve_connection()
     return {
         "status": "ok",
         "message": "Backend running" if connected else "Backend running — DaVinci Resolve not connected",
@@ -137,7 +195,20 @@ async def health():
 @app.get("/api/models")
 async def get_models():
     """Return available models for all providers."""
-    return get_model_catalog(_current_provider)
+    try:
+        catalog = get_model_catalog(_current_provider)
+    except Exception as exc:
+        # This endpoint is used while the popup is starting. Keep it
+        # available even if a future provider implementation fails during
+        # discovery; the popup already has a small built-in fallback catalog.
+        logger.warning("Model catalog lookup failed; returning empty optional lists", error=str(exc))
+        catalog = {"anthropic": [], "gemini": [], "ollama": []}
+    # The model catalog helper is also used outside the HTTP layer and falls
+    # back to the startup configuration. Return the live selection here so
+    # popup clients can initialise their controls correctly after a switch.
+    catalog["current_provider"] = _current_provider
+    catalog["current_model"] = _current_model
+    return catalog
 
 
 @app.post("/api/set-model")
@@ -262,26 +333,31 @@ async def rename_chat(thread_id: str, body: dict):
     await _db_conn.commit()
     return {"ok": True, "id": thread_id, "title": title}
 
+
+async def _delete_thread_state(thread_id: str) -> None:
+    """Remove one LangGraph session from the legacy SQLite checkpointer."""
+    from backend.agent.graph import _db_conn
+    if not _db_conn:
+        return
+    await _ensure_chat_titles_table()
+    await _db_conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+    async with _db_conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('writes', 'checkpoint_writes')"
+    ) as cur:
+        write_tables = [row[0] for row in await cur.fetchall()]
+    for table in write_tables:
+        await _db_conn.execute(f"DELETE FROM {table} WHERE thread_id = ?", (thread_id,))
+    await _db_conn.execute("DELETE FROM chat_titles WHERE thread_id = ?", (thread_id,))
+    await _db_conn.commit()
+
 @app.delete("/api/chats/{thread_id}")
 async def delete_chat(thread_id: str):
     """Delete a chat thread and all its checkpoints from the database."""
     from backend.agent.graph import _db_conn
     if not _db_conn:
         return {"ok": False, "error": "Database not initialized"}
-    await _ensure_chat_titles_table()
-    
     try:
-        await _db_conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
-        # AsyncSqliteSaver creates `writes` (not `checkpoint_writes`). Keep a
-        # compatibility fallback for older databases that used the latter.
-        async with _db_conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('writes', 'checkpoint_writes')"
-        ) as cur:
-            write_tables = [row[0] for row in await cur.fetchall()]
-        for table in write_tables:
-            await _db_conn.execute(f"DELETE FROM {table} WHERE thread_id = ?", (thread_id,))
-        await _db_conn.execute("DELETE FROM chat_titles WHERE thread_id = ?", (thread_id,))
-        await _db_conn.commit()
+        await _delete_thread_state(thread_id)
         return {"ok": True}
     except Exception as e:
         logger.error(f"Error deleting thread: {e}")
@@ -289,12 +365,18 @@ async def delete_chat(thread_id: str):
 
 # ── State Lifecycle Helpers ──────────────────────────────────────────────────
 
-def _start_of_turn_state(content: str, provider: str, model: str) -> dict:
+def _start_of_turn_state(
+    content: str,
+    provider: str,
+    model: str,
+    saved_memory: list[dict] | None = None,
+) -> dict:
     """Returns the clean state dict to inject at the start of a new turn."""
     return {
         "messages": [{"role": "user", "content": content}],
         "llm_provider": provider,
         "llm_model": model,
+        "global_memory": saved_memory or [],
         "intent": None,
         "retrieved_docs": [],
         "planned_calls": [],
@@ -304,6 +386,7 @@ def _start_of_turn_state(content: str, provider: str, model: str) -> dict:
         "execution_results": [],
         "final_response": "",
         "technical_details": None,
+        "tool_proposal": None,
     }
 
 async def _end_of_turn_cleanup(graph, config, result_state: dict):
@@ -343,6 +426,190 @@ async def _end_of_turn_cleanup(graph, config, result_state: dict):
         await graph.aupdate_state(config, cleanup_state)
         # Update the local dictionary so main.py doesn't echo transient state over WS
         result_state.update(cleanup_state)
+
+
+# ── Small popup API ───────────────────────────────────────────────────────────
+
+async def _run_simple_graph(session_id: str, input_state: dict | None) -> dict:
+    """Run one popup turn and keep its task cancellable by the Stop button."""
+    graph = await get_graph()
+    config = {"configurable": {"thread_id": session_id}}
+    task = asyncio.create_task(graph.ainvoke(input_state, config))
+    _simple_tasks[session_id] = task
+    try:
+        return await task
+    finally:
+        _simple_tasks.pop(session_id, None)
+
+
+async def _simple_payload(session_id: str, result_state: dict) -> dict:
+    """Convert a graph result to the intentionally small popup response."""
+    # Check for pending confirmation BEFORE cleanup, because cleanup will
+    # wipe pending_confirmation from the graph state.
+    pending = result_state.get("pending_confirmation")
+    # A confirmed graph still carries the original pending payload until the
+    # end-of-turn cleanup runs. Only pause the popup when confirmation has not
+    # been supplied yet; after confirmed=True, return the executor/reporter
+    # result instead of showing the same prompt again.
+    if pending and result_state.get("confirmed") is None:
+        return {
+            "ok": True,
+            "content": pending.get("message", "Please confirm this action."),
+            "details": result_state.get("technical_details", []),
+            "needs_confirmation": pending,
+        }
+
+    # No confirmation needed — run cleanup and return the final response.
+    graph = await get_graph()
+    config = {"configurable": {"thread_id": session_id}}
+    await _end_of_turn_cleanup(graph, config, result_state)
+
+    payload = {
+        "ok": True,
+        "content": result_state.get("final_response", "No response was returned."),
+        "details": result_state.get("technical_details", []),
+        "needs_confirmation": None,
+    }
+    # Popup sessions are deliberately ephemeral. The browser's legacy chat
+    # endpoints remain available as a fallback, but this path leaves no chat
+    # transcript in SQLite after a completed turn.
+    await _delete_thread_state(session_id)
+    return payload
+
+
+@app.post("/api/simple/query")
+async def simple_query(body: dict):
+    """Run one prompt for the small Resolve popup client."""
+    content = body.get("content", "") if isinstance(body, dict) else ""
+    if not isinstance(content, str) or not content.strip():
+        raise HTTPException(status_code=400, detail="Query content is required")
+
+    session_id = body.get("session_id") or str(uuid.uuid4())
+    if not isinstance(session_id, str) or not session_id.strip():
+        raise HTTPException(status_code=400, detail="session_id must be a string")
+    if session_id in _simple_tasks:
+        raise HTTPException(status_code=409, detail="A request is already running")
+    # This is a new user turn. A previous completed confirmation response is
+    # no longer relevant once the popup submits new content.
+    _simple_completed.pop(session_id, None)
+
+    remembered = extract_explicit_memory(content)
+    if remembered:
+        add_memory(remembered)
+        # Memory commands are deterministic and do not need an LLM or a
+        # Resolve call. This keeps the popup path fast and clear.
+        return {
+            "ok": True,
+            "content": "I will remember that: " + remembered,
+            "details": [],
+            "needs_confirmation": None,
+        }
+
+    provider = body.get("provider", _current_provider)
+    model = body.get("model", _current_model)
+    input_state = _start_of_turn_state(
+        content.strip(),
+        provider,
+        model,
+        saved_memory=memory_context(),
+    )
+    try:
+        result = await _run_simple_graph(session_id, input_state)
+        return await _simple_payload(session_id, result)
+    except Exception as exc:
+        safe_error = redact_secrets(exc)
+        logger.error("Simple popup query failed", error=safe_error)
+        await _delete_thread_state(session_id)
+        return {"ok": False, "content": f"Assistant error: {safe_error}", "details": []}
+
+
+@app.post("/api/simple/confirm")
+async def simple_confirm(body: dict):
+    """Continue or cancel the confirmation currently shown in the popup."""
+    session_id = body.get("session_id") if isinstance(body, dict) else None
+    confirmed = bool(body.get("confirmed")) if isinstance(body, dict) else False
+    if not isinstance(session_id, str) or not session_id.strip():
+        raise HTTPException(status_code=400, detail="session_id is required")
+
+    # Serialize confirmation requests for this popup session. This protects
+    # against double-clicks and duplicate native UI events.
+    lock = _simple_confirmation_locks.setdefault(session_id, asyncio.Lock())
+    async with lock:
+        cached = _cached_simple_result(session_id)
+        if cached is not None:
+            return cached
+
+        graph = await get_graph()
+        config = {"configurable": {"thread_id": session_id}}
+        if not confirmed:
+            await graph.aupdate_state(
+                config,
+                {"confirmed": False, "pending_confirmation": None, "planned_calls": [], "cancel_requested": None},
+            )
+            await _delete_thread_state(session_id)
+            payload = {"ok": True, "content": "Action cancelled.", "details": [], "needs_confirmation": None}
+            _cache_simple_result(session_id, payload)
+            return payload
+
+        if session_id in _simple_tasks:
+            raise HTTPException(status_code=409, detail="A request is already running")
+        await graph.aupdate_state(config, {"confirmed": True, "cancel_requested": None})
+        try:
+            result = await _run_simple_graph(session_id, None)
+            payload = await _simple_payload(session_id, result)
+            # Cache only completed responses. If a malformed/stale checkpoint
+            # still asks for confirmation, the caller must not be locked out.
+            if payload.get("needs_confirmation") is None:
+                _cache_simple_result(session_id, payload)
+            return payload
+        except Exception as exc:
+            safe_error = redact_secrets(exc)
+            logger.error("Simple popup confirmation failed", error=safe_error)
+            await _delete_thread_state(session_id)
+            return {"ok": False, "content": f"Assistant error: {safe_error}", "details": []}
+
+
+@app.post("/api/simple/cancel")
+async def simple_cancel(body: dict):
+    """Ask a running popup request to stop at the next safe graph boundary."""
+    session_id = body.get("session_id") if isinstance(body, dict) else None
+    if not isinstance(session_id, str) or not session_id.strip():
+        raise HTTPException(status_code=400, detail="session_id is required")
+
+    graph = await get_graph()
+    config = {"configurable": {"thread_id": session_id}}
+    if session_id in _simple_tasks:
+        await graph.aupdate_state(config, {"cancel_requested": True})
+        return {"ok": True, "content": "Stop requested."}
+
+    await _delete_thread_state(session_id)
+    return {"ok": True, "content": "Session cleared."}
+
+
+@app.get("/api/simple/memory")
+async def simple_memory():
+    """Return the explicit global memory profile for the popup menu."""
+    return load_memory()
+
+
+@app.post("/api/simple/memory")
+async def add_simple_memory(body: dict):
+    text = body.get("text") if isinstance(body, dict) else None
+    category = body.get("category", "preference") if isinstance(body, dict) else "preference"
+    if not isinstance(text, str) or not text.strip():
+        raise HTTPException(status_code=400, detail="Memory text is required")
+    try:
+        return {"ok": True, "item": add_memory(text, category)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/simple/memory")
+async def delete_simple_memory(memory_id: str | None = None):
+    if memory_id:
+        return {"ok": delete_memory(memory_id)}
+    clear_memory()
+    return {"ok": True}
 
 # ── WebSocket chat ─────────────────────────────────────────────────────────────
 
@@ -448,9 +715,18 @@ async def chat_socket(ws: WebSocket, thread_id: str):
                     # a user-defined title.
                     await _ensure_chat_title(thread_id, content)
 
+                    remembered = extract_explicit_memory(content)
+                    if remembered:
+                        add_memory(remembered)
+
                     await ws.send_json({"type": "typing", "content": ""})
 
-                    input_state = _start_of_turn_state(content, provider, model)
+                    input_state = _start_of_turn_state(
+                        content,
+                        provider,
+                        model,
+                        saved_memory=memory_context(),
+                    )
 
                     in_flight = True
                     graph_task = asyncio.create_task(graph.ainvoke(input_state, config))
@@ -477,8 +753,9 @@ async def chat_socket(ws: WebSocket, thread_id: str):
                     }
                     await ws.send_json(response_payload)
                 except Exception as e:
-                    logger.error(f"Error in graph execution: {e}")
-                    await ws.send_json({"type": "response", "content": f"Error: {str(e)}"})
+                    safe_error = redact_secrets(e)
+                    logger.error("Error in graph execution", error=safe_error)
+                    await ws.send_json({"type": "response", "content": f"Error: {safe_error}"})
                 finally:
                     in_flight = False
                     graph_task = None
@@ -491,7 +768,7 @@ async def chat_socket(ws: WebSocket, thread_id: str):
         reader_task.cancel()
         logger.info("WebSocket client disconnected", thread_id=thread_id)
     except Exception as e:
-        logger.error(f"Unexpected WebSocket error: {e}")
+        logger.error("Unexpected WebSocket error", error=redact_secrets(e))
     finally:
         if graph_task is not None and not graph_task.done():
             graph_task.cancel()

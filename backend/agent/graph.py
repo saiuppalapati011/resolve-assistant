@@ -24,7 +24,7 @@ def build_graph():
     # Entry point
     graph.set_entry_point("router")
 
-    # Router → RAG or Planner or Query
+    # Router → RAG or Planner
     graph.add_conditional_edges(
         "router",
         lambda s: "end" if s.get("cancel_requested") else s["intent"],
@@ -68,7 +68,6 @@ def build_graph():
         },
     )
 
-
     graph.add_edge("executor", "reporter")
     graph.add_edge("reporter", END)
 
@@ -78,6 +77,7 @@ def build_graph():
 # Module-level compiled graph (lazy)
 _graph = None
 _db_conn = None
+
 
 async def get_graph():
     global _graph, _db_conn
@@ -89,11 +89,11 @@ async def get_graph():
         db_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data")
         os.makedirs(db_dir, exist_ok=True)
         db_path = os.path.join(db_dir, "chats.sqlite")
-        
+
         _db_conn = await aiosqlite.connect(db_path)
         saver = AsyncSqliteSaver(_db_conn)
         await saver.setup()
-        
+
         _graph = build_graph().compile(checkpointer=saver)
     return _graph
 

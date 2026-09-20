@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import requests
 from backend.llm.base import LLMProvider
+from backend.llm.errors import provider_error_message, redact_secrets
 from backend.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -49,11 +50,8 @@ class OllamaProvider(LLMProvider):
             resp = requests.post(f"{self._host}/api/chat", json=payload, timeout=120)
             resp.raise_for_status()
         except requests.RequestException as exc:
-            logger.error("Ollama request failed", error=str(exc))
-            raise ConnectionError(
-                f"Could not reach Ollama at {self._host}. "
-                "Is Ollama running? Start it with: ollama serve"
-            ) from exc
+            logger.error("Ollama request failed", error=redact_secrets(exc))
+            raise RuntimeError(provider_error_message("Ollama", exc)) from exc
 
         return self._normalize(resp.json())
 
@@ -90,7 +88,14 @@ class OllamaProvider(LLMProvider):
             return [
                 {"id": m["name"], "label": m["name"]}
                 for m in models
+                if isinstance(m, dict) and isinstance(m.get("name"), str) and m["name"].strip()
             ]
-        except requests.RequestException:
-            logger.warning("Could not fetch Ollama model list; is Ollama running?")
+        except Exception as exc:
+            # Ollama is optional. Connection errors, invalid JSON, and an
+            # unexpected response shape should all be treated as an empty
+            # optional list rather than breaking the provider selector.
+            logger.warning(
+                "Could not fetch Ollama model list; is Ollama running?",
+                error=str(exc),
+            )
             return []

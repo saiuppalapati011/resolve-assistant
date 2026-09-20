@@ -2,6 +2,10 @@
 
 > **Purpose:** This document tracks all implementation progress, design decisions, features added, issues discovered, and next steps. It is the primary context source for continuing development across sessions.
 
+For the complete consolidated history, including the Resolve popup migration,
+reliability fixes, global memory, web fallback, GUI testing, and current
+limitations, see [`docs/IMPLEMENTATION_HISTORY.md`](docs/IMPLEMENTATION_HISTORY.md).
+
 ---
 
 ## Project Summary
@@ -13,6 +17,44 @@ A standalone macOS companion app for DaVinci Resolve that provides:
 4. Flexible LLM backend (Anthropic Claude or Ollama) switchable live from the UI
 
 **Stack:** Python 3.11, FastAPI, LangGraph, Chroma, sentence-transformers, pdfplumber, Anthropic SDK, HTML/CSS/JS
+
+## Simple Resolve popup mode — 2026-09-07
+
+The project now includes a deliberately small Resolve/Fusion Python client for
+the college-project version of the assistant:
+
+- `resolve_scripts/ResolveAssistant.py` creates a compact UI Manager popup.
+- The popup has an explicit Close control, provider/model selectors, and an
+  Apply action that updates both the popup request and the backend default.
+- Startup checks `/health` and enables the popup as soon as FastAPI responds;
+  Resolve/MCP connectivity is reported separately while background warm-up
+  continues.
+- The popup uses `/api/simple/query`, `/api/simple/confirm`, and
+  `/api/simple/cancel` instead of exposing chat threads.
+- Popup sessions are ephemeral; completed turns are removed from the LangGraph
+  SQLite checkpoint tables.
+- `backend/memory.py` stores only explicit `remember ...` items in
+  `data/assistant_memory.json`.
+- The browser client remains available as a development fallback.
+
+The popup intentionally keeps the heavy agent, MCP client, RAG, provider keys,
+and tool safety logic in the FastAPI sidecar. Resolve's embedded Python only
+needs its built-in UI Manager and the standard-library HTTP client.
+
+### Reliability and rendering pass — 2026-09-20
+
+- The popup renders common Markdown safely, including lists, links, headings,
+  bold, italics, and inline code. Raw HTML is escaped before rendering.
+- Timeline tool arguments are matched to real Resolve timeline names without
+  case sensitivity, preventing avoidable `Timeline not found` failures.
+- The MCP client no longer treats macOS process-list inspection as a hard
+  prerequisite. The Resolve scripting API is now the source of truth for
+  connection status.
+- Live smoke tests covered formatted responses, a lowercase timeline query,
+  switching to Color, and switching back to Edit.
+- Latest automated result: **45 passed, 6 skipped, 3 warnings**.
+- The installed Resolve script was synchronized from
+  `resolve_scripts/ResolveAssistant.py` to the Utility scripts folder.
 
 ---
 
@@ -83,6 +125,7 @@ A standalone macOS companion app for DaVinci Resolve that provides:
 | 🟡 Medium | Confirmation graph resume path | After user confirms via UI, the graph re-invokes from executor. Session state stored in-memory — works for single-user v1, will need rework for multi-session |
 | 🟢 Low | No streaming support | Responses arrive complete, not streamed token-by-token; adds latency feel |
 | 🟢 Low | Action log in sidebar not auto-updated from WS responses | JS side needs to parse execution_results from WS response to add log entries |
+| 🟢 Low | Popup Markdown is a supported subset | Full CommonMark is intentionally not included in the embedded script |
 
 ---
 
@@ -189,4 +232,4 @@ resolve-assistant/
 
 ---
 
-*Last updated: 2026-08-17 by AI (Antigravity)*
+*Last updated: 2026-09-20*

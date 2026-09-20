@@ -39,3 +39,7 @@ structlog>=24.1.0
 pytest>=8.2.0
 pytest-asyncio>=0.23.0
 pytest-mock>=3.14.0
+
+# PostgreSQL long-term memory store
+langgraph-checkpoint-postgres>=2.0.0
+psycopg[async,binary]>=3.1

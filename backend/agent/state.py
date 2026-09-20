@@ -33,6 +33,9 @@ class AgentState(TypedDict):
     llm_provider: str
     llm_model: str
 
+    # Explicit long-term memory items. This is a small profile, not chat history.
+    global_memory: list[dict]
+
     # Tool discovery proposal — STRICTLY separate from pending_confirmation.
     # pending_confirmation = "should I execute a known destructive tool?"
     # tool_proposal        = "should I add a newly-discovered method as a tool?"

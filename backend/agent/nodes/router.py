@@ -13,6 +13,7 @@ import re
 from backend.agent.state import AgentState
 from backend.llm.factory import get_provider
 from backend.logging_config import get_logger
+from backend.llm.errors import redact_secrets
 
 logger = get_logger(__name__)
 
@@ -136,10 +137,10 @@ async def run(state: AgentState) -> AgentState:
         return {"intent": intent}
 
     # 2. LLM fallback for genuinely ambiguous messages
-    provider = get_provider(state.get("llm_provider"), state.get("llm_model"))
     llm_messages = [{"role": m["role"], "content": m["content"]} for m in state.get("messages", [])]
 
     try:
+        provider = get_provider(state.get("llm_provider"), state.get("llm_model"))
         response = provider.generate(
             messages=llm_messages,
             system=_build_system(),
@@ -147,7 +148,7 @@ async def run(state: AgentState) -> AgentState:
         intent_raw = response["content"].strip().lower()
         intent = "action" if "action" in intent_raw else "qa"
     except Exception as exc:
-        logger.error("Router LLM call failed — defaulting to action", error=str(exc))
+        logger.error("Router LLM call failed — defaulting to action", error=redact_secrets(exc))
         intent = "action"   # ← safer fallback: try to execute; planner will reject if truly out-of-scope
 
     logger.info("Router classified message (LLM)", intent=intent, message=user_message[:60])

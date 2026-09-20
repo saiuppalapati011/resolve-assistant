@@ -79,6 +79,16 @@ class Settings:
     embeddings_model: str = (
         _cfg.get("rag", {}).get("embeddings", {}).get("model", "all-MiniLM-L6-v2")
     )
+    web_search_enabled: bool = os.getenv(
+        "WEB_SEARCH_ENABLED",
+        str(_cfg.get("rag", {}).get("web_search_enabled", True)),
+    ).lower() in {"1", "true", "yes", "on"}
+    web_search_timeout: int = int(
+        os.getenv("WEB_SEARCH_TIMEOUT", _cfg.get("rag", {}).get("web_search_timeout", 8))
+    )
+    web_search_max_results: int = int(
+        os.getenv("WEB_SEARCH_MAX_RESULTS", _cfg.get("rag", {}).get("web_search_max_results", 5))
+    )
 
     # ── Docs ─────────────────────────────────────────────────────────────────
     pdf_dir: str = str((_ROOT / _cfg.get("docs", {}).get("pdf_dir", "../Documentations")).resolve())
@@ -102,6 +112,12 @@ class Settings:
         )).resolve()),
     )
     mcp_python: str = os.getenv("MCP_PYTHON", os.sys.executable)
+
+    # ── PostgreSQL (long-term memory store) ──────────────────────────────────
+    database_url: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql://resolve:resolve_secret@localhost:5432/resolve_assistant",
+    )
 
 
 settings = Settings()

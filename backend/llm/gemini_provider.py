@@ -4,8 +4,10 @@ Supports all Gemini models via REST API.
 """
 from __future__ import annotations
 
+import time
 import requests
 from backend.llm.base import LLMProvider
+from backend.llm.errors import is_transient_provider_error, provider_error_message, redact_secrets
 from backend.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -73,21 +75,38 @@ class GeminiProvider(LLMProvider):
                 "parts": [{"text": system}]
             }
             
-        try:
-            resp = requests.post(
-                url, 
-                json=payload, 
-                headers={"Content-Type": "application/json"},
-                timeout=30
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        except requests.RequestException as exc:
-            err_msg = str(exc)
-            if exc.response is not None:
-                err_msg += f" - {exc.response.text}"
-            logger.error("Gemini API error", error=err_msg)
-            raise RuntimeError(f"Gemini API error: {err_msg}")
+        # Keep popup failures bounded. A stalled provider should not leave the
+        # Resolve window waiting for roughly a minute before it can recover.
+        attempts = 2
+        for attempt in range(1, attempts + 1):
+            try:
+                resp = requests.post(
+                    url,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=12,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                break
+            except requests.RequestException as exc:
+                if attempt < attempts and is_transient_provider_error(exc):
+                    delay = 0.6 * (2 ** (attempt - 1))
+                    logger.warning(
+                        "Transient Gemini API failure; retrying",
+                        attempt=attempt,
+                        delay_s=delay,
+                        error=redact_secrets(exc),
+                    )
+                    time.sleep(delay)
+                    continue
+
+                logger.error(
+                    "Gemini API error",
+                    error=redact_secrets(exc),
+                    status=getattr(getattr(exc, "response", None), "status_code", None),
+                )
+                raise RuntimeError(provider_error_message("Gemini", exc)) from exc
 
         return self._normalize(data)
 

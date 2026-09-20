@@ -13,6 +13,9 @@ from backend.llm.factory import get_provider
 from backend.rag.retriever import Retriever
 from backend.logging_config import get_logger
 from backend.resolve.mcp_client import get_mcp_client
+from backend.resolve.mcp_client import check_resolve_connection
+from backend.agent.nodes.memory_utils import format_memory
+from backend.llm.errors import provider_error_message, redact_secrets
 
 logger = get_logger(__name__)
 
@@ -120,9 +123,25 @@ CRITICAL — When you cannot produce a plan, you MUST return a structured reason
 """
 
 
+# _format_memory is provided by backend.agent.nodes.memory_utils.format_memory
+
+
 
 async def run(state: AgentState) -> AgentState:
     user_message = state["messages"][-1]["content"]
+
+    # Do not spend an LLM request planning a Resolve operation when the
+    # scripting bridge is offline. The MCP stdio session can remain alive even
+    # after Resolve closes, so checking only for a session is insufficient.
+    if not await check_resolve_connection():
+        return {
+            "planned_calls": [],
+            "final_response": (
+                "DaVinci Resolve is not connected. Open Resolve and make sure "
+                "external scripting is enabled, then try again."
+            ),
+            "tool_proposal": None,
+        }
 
     # 1. Retrieve relevant API doc chunks to ground the planner
     try:
@@ -199,31 +218,44 @@ async def run(state: AgentState) -> AgentState:
     last_msg = llm_messages[-1]["content"]
     llm_messages[-1]["content"] = (
         f"Relevant documentation:\n{doc_context}\n\n"
+        f"Saved user preferences and terminology:\n{format_memory(state.get('global_memory'))}\n\n"
         f"User request: {last_msg}\n\n"
         "Produce the planned_calls JSON now."
     )
 
-    provider = get_provider(state.get("llm_provider"), state.get("llm_model"))
-
     try:
+        provider = get_provider(state.get("llm_provider"), state.get("llm_model"))
         response = provider.generate(
             messages=llm_messages,
             system=_build_system(tool_list_str, inactive_allowed),
         )
         raw = response["content"].strip()
+    except Exception as exc:
+        logger.error(
+            "Planner provider request failed",
+            error=redact_secrets(exc),
+            provider=state.get("llm_provider"),
+        )
+        return {
+            "planned_calls": [],
+            "final_response": provider_error_message(state.get("llm_provider"), exc),
+        }
 
-        # Extract JSON even if the model wraps it in markdown
+    try:
+        # Extract JSON even if the model wraps it in markdown.
         if "```" in raw:
             raw = raw.split("```")[1]
             if raw.startswith("json"):
                 raw = raw[4:]
-
         plan_data = json.loads(raw)
-    except (json.JSONDecodeError, Exception) as exc:
-        logger.error("Planner failed to parse LLM output", error=str(exc))
+    except json.JSONDecodeError as exc:
+        logger.error("Planner returned invalid JSON", error=redact_secrets(exc))
         return {
             "planned_calls": [],
-            "final_response": f"I couldn't plan the action: {exc}. Please rephrase your request.",
+            "final_response": (
+                "The AI provider returned an invalid action plan. "
+                "Please try the request again."
+            ),
         }
 
     # 4. Validate every tool name AND required args against active tool schemas

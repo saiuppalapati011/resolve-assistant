@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import anthropic
 from backend.llm.base import LLMProvider
+from backend.llm.errors import provider_error_message, redact_secrets
 from backend.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -63,8 +64,8 @@ class AnthropicProvider(LLMProvider):
         try:
             response = self._client.messages.create(**kwargs)
         except anthropic.APIError as exc:
-            logger.error("Anthropic API error", error=str(exc))
-            raise
+            logger.error("Anthropic API error", error=redact_secrets(exc))
+            raise RuntimeError(provider_error_message("Anthropic", exc)) from exc
 
         return self._normalize(response)
 
