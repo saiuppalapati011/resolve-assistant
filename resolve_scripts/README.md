@@ -56,6 +56,10 @@ renderer. It supports the formatting normally returned by the LLM (lists,
 links, headings, bold, italics, and inline code) and escapes raw HTML before it
 is inserted into the Resolve UI.
 
+The prompt is a single-line input: pressing Enter submits it, and the Send
+button remains available as an alternative. New transcript entries are
+automatically scrolled into view so the latest response is visible.
+
 If startup fails, the popup reports the child-process exit instead of waiting
 silently. The backend launch log is written to
 `data/popup_backend.log` inside the assistant directory.

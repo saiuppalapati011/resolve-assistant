@@ -332,12 +332,13 @@ def main():
                             "Weight": 1,
                         }
                     ),
-                    ui.TextEdit(
+                    ui.LineEdit(
                         {
                             "ID": "Prompt",
                             "PlaceholderText": "Ask Resolve Assistant...",
-                            "MinimumSize": [0, 70],
-                            "MaximumSize": [10000, 100],
+                            "MinimumSize": [0, 48],
+                            "MaximumSize": [10000, 60],
+                            "Events": {"ReturnPressed": True},
                             "Weight": 0,
                         }
                     ),
@@ -493,10 +494,21 @@ def main():
             % (color, label, markdown_to_html(text))
         )
         try:
-            items["Transcript"].HTML = existing + addition
+            items["Transcript"].HTML = existing + addition + "<a name='latest'></a>"
+            scroll_transcript_to_latest()
         except Exception:
             items["Transcript"].Text = existing + "\n%s: %s\n" % (label, text)
         state["last_message_key"] = message_key
+
+    def scroll_transcript_to_latest():
+        """Keep the newest response visible after adding transcript content."""
+        try:
+            items["Transcript"].ScrollToAnchor("latest")
+        except Exception:
+            try:
+                items["Transcript"].EnsureCursorVisible()
+            except Exception:
+                pass
 
     def read_prompt():
         """Read user input across Resolve TextEdit implementations."""
@@ -808,6 +820,7 @@ def main():
 
     window.On.ResolveAssistantWindow.Close = close
     window.On.Send.Clicked = send
+    window.On.Prompt.ReturnPressed = send
     window.On.Confirm.Clicked = confirm
     window.On.Cancel.Clicked = cancel
     window.On.Clear.Clicked = clear_chat

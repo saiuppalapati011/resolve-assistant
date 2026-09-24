@@ -449,7 +449,17 @@ and browser fallback remain available. The goal is that the project can be
 explained as a small pipeline: popup/browser → FastAPI → agent → RAG or MCP →
 response.
 
-## 14. Important security note
+## 14. Resolve popup input and transcript behavior — 2026-09-22
+
+- Replaced the multiline prompt control with a single-line Resolve `LineEdit`.
+- Enter now uses the native `ReturnPressed` event to submit the prompt, while
+  the Send button remains available.
+- Added a transcript anchor and automatic scroll-to-latest behavior after each
+  user or assistant message. A cursor-visibility fallback is used when a
+  Resolve build does not support scrolling to the anchor.
+- Synchronized the updated source to Resolve's Utility scripts folder.
+
+## 15. Important security note
 
 An API key was previously visible in a pasted provider error URL during testing.
 That key should be revoked and regenerated. Provider keys belong only in the
